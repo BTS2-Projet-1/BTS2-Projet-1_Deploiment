@@ -1,0 +1,321 @@
+#!/bin/bash
+#
+# Xsession:	Setup the xsession and start the xsession
+#		script of the user for logon.
+#		
+# Copyright (c) 1998-2000 SuSE GmbH Nuernberg, Germany.
+# Copyright (c) 2005-2013 SUSE LINUX Products GmbH
+# please report bugfixes or comments at http://www.suse.de/feedback.
+#
+# Author: Werner Fink <werner@suse.de>
+#
+
+#
+# What we do if we are signaled or do not leave this
+# script with an appropriate exec call.
+#
+failsafe="xterm -ls -T Failsafe -n Failsafe -bg purple -fg white -geometry 80x24+0+0"
+trap "exec $failsafe" EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGIO
+
+#
+# Some bash (1 and 2) settings to avoid trouble on a
+# failed program call.
+#
+set +e > /dev/null 2>&1
+set +u > /dev/null 2>&1
+set +o posix  > /dev/null 2>&1
+if type shopt > /dev/null 2>&1 ; then
+    shopt -s execfail
+else
+    no_exit_on_failed_exec=1
+fi
+
+#
+# Some system defaults
+#
+    XETCDIR=/etc/X11
+     XDMDIR=$XETCDIR/xdm
+   XINITDIR=$XETCDIR/xinit
+:  ${TMPDIR=/tmp}
+
+export OPENWINHOME TMPDIR
+test -n "$XAUTHORITY" || unset XAUTHORITY
+
+#
+# Save our arguments, maybe some of users call
+# `set' in their profile files.
+#
+argv=("$@")
+
+#
+# Handle the NoChange option of wdm 
+#
+/sbin/pidof -s wdm > /dev/null 2>&1
+if test $? -eq 0 ; then
+    OIFS="$IFS"
+    IFS=$'\n'
+    if test ${#argv[@]} -eq 0 ; then
+	if test -s $HOME/.wmrc ; then
+    	    argv=($(<$HOME/.wmrc))	#use wm from previous session
+	fi    
+    else
+	echo "${argv[*]}" > $HOME/.wmrc	#save wm
+    fi
+    IFS="$OIFS"
+fi
+
+#
+# Disable graphical login if normal login is disabled
+#
+login=false
+while read sh ; do
+    if test "$sh" = "$SHELL" ; then
+	login=true
+	break
+    fi
+done < /etc/shells
+
+if test "$login" != "true" -o "$SHELL" = "/bin/false" ; then
+    trap "exec xmessage -timeout 10 -button okay:1 -center	\
+	\"${0##*/}: Login for $USER is disabled.\""		\
+	EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGIO
+    exit 1
+fi
+unset sh login
+
+#
+# Run the X session scripts with the login shell of
+# the user. This function requires bash 2.0 or higher.
+#
+exec_login ()
+{
+    local shell=$SHELL
+    local cmd=${shell##*/}
+
+    case "${cmd}" in
+    r*sh)  shell=/bin/${cmd#r}; cmd=${shell##*/} ;;
+    true)  shell=/bin/sh      ; cmd=${shell##*/} ;;
+    esac
+
+    test -f "$1" -a ! -x "$1" && set -- /bin/bash "$@"
+
+    : ${HOSTNAME:=$(hostname -f)}
+    export HOSTNAME
+
+    case "${cmd}" in
+    csh|tcsh)
+	exec -l -a ${cmd} ${shell}	   -c 'exec $argv:q'  "${@}"	;;
+    bash*|zsh)
+	exec -l -a ${cmd} ${shell} --login -c 'exec "${@}"' - "${@}"	;;
+    dash|pdksh|*pcksh|ksh*)
+	exec -l -a ${cmd} ${shell} -l	   -c 'exec "${@}"' - "${@}"	;;
+    *)
+	exec -l -a ${cmd} ${shell}	   -c 'exec "${@}"' - "${@}"	;;
+    esac
+}
+#
+# Redirect errors to the standard user log files.
+#
+for errfile in	"${HOME}/.xsession-errors" \
+		"${TMPDIR:-/tmp}/xerr-${USER}-${DISPLAY}"
+do
+    stderr=$(readlink -f /dev/stderr 2>/dev/null)
+
+    # Some DM seem to handle this them self
+    case "$stderr" in
+    /var/*|/tmp/*|/dev/*)
+	;;
+    *)	break
+    esac
+
+    # Avoid bad symbolic links
+    # mv(1) uses rename(2) on the *same* file system
+    case "${errfile##*/}" in
+	xerr-*)
+	    if rm -f -- "$errfile" ; then
+		tmpfile="$(mktemp -q "$errfile.XXXXXXXX")" || break
+		mv -fT "$tmpfile" "$errfile" || break
+		exec > "$errfile" 2>&1
+		break
+	    fi
+	    ;;
+	*)
+	    # Should we catch also e.g. vboxsf?
+	    if test $(stat -fc '%T' "${errfile%/.*}" 2>/dev/null) = nfs
+	    then
+		errfile="${errfile}-${HOSTNAME:-$(hostname -f)}:${DISPLAY#*:}"
+	    else
+		errfile="${errfile}-${DISPLAY}"
+	    fi
+	    if test ! -e "$errfile" ; then
+		tmpfile="$(mktemp -q "$errfile.XXXXXXXX")" || break
+		mv -fT "$tmpfile" "$errfile" || break
+	    fi
+	    #exec > "$errfile" 2>&1
+	    #fate#316129: only put the error message to the logfile
+	    exec > /dev/null
+	    exec 2> "$errfile"
+	    break
+	    ;;
+    esac
+done
+unset tmpfile errfile
+#
+# Check for X11R6 in execution path
+#
+case ":${PATH}:" in
+    *:/usr/X11R6/bin:*) ;;
+    *)  PATH="${PATH}:/usr/X11R6/bin"
+esac
+
+#
+# Window manager provided later by KDM/GDM
+# or read from the system settings
+#
+WINDOWMANAGER=""
+export WINDOWMANAGER
+
+#
+# By default we set system defaults for the language
+#
+. /etc/profile.d/lang.sh
+
+#
+# Handle arguments given by xdm/kdm/gdm.
+#
+forced=no
+if test ${#argv[@]} -gt 0 ; then
+    typeset -i argc=0
+    for l in ${argv[@]} ; do
+	case "$l" in
+            # extra environment variables settings
+            "env")
+                extra_env_settings="yes"
+                unset argv[$argc]
+                ;;
+            *=*)
+                if test $extra_env_settings = "yes"; then
+                    eval "export $l" || :
+                    unset argv[$argc]
+                fi
+                ;;
+	    [a-z][a-z]_[A-Z][A-Z]*)
+	        GDM_LANG=$l
+	        break
+                ;;
+            *)
+                # stop extracting env info after the first one that's not an ENV
+                # setting. This is needed to prevent messing command line
+                # arguments with the form: "XXX=XX"
+                extra_env_settings="no"
+                ;;
+	esac
+
+        # argv is an array with index starting from 0
+	let argc++ || :
+    done
+    unset argv[$argc]
+    unset l
+
+    # get Window Manager only after the previous argument processing.
+    #
+    # reset the parameter array for convenience
+    argv=("${argv[@]}")
+    case "${argv[0]}" in
+        failsafe)	exec $failsafe   ;;
+        default)	;;
+        custom)	;;
+        *)		forced=yes
+	    WINDOWMANAGER=${argv[0]} ;;
+    esac
+
+fi
+readonly argv
+ 
+#
+# If GDM had set GDM_LANG then override LANG:
+#
+if test -n "$GDM_LANG" ; then
+    LANG="$GDM_LANG"
+    export LANG
+    if test -n "$LC_ALL" ; then
+	test "$LC_ALL"   = "$LANG" || LC_ALL="$LANG"
+    else
+	unset LC_ALL
+    fi
+    if test -n "$LANGUAGE" ; then
+	test "$LANGUAGE" = "$LANG" || LANGUAGE="$LANG"
+    else
+	unset LANGUAGE
+    fi
+    if test -n "$LINGUAS" ; then
+	test "$LINGUAS"  = "$LANG" || LINGUAS="$LANG"
+    else
+	unset LINGUAS
+    fi
+fi
+
+#
+# No window manager? Get system default
+#
+if test "$forced" != "yes" ; then
+    . /etc/profile.d/profile.sh
+fi
+
+#
+# Source common code shared between the
+# X session and X init scripts
+#
+. /etc/X11/xinit/xinitrc.common
+
+# Restore arguments but skip window manager
+set -- "${argv[@]}"
+shift
+
+#
+# Some common user and system files
+#
+session=$HOME/.xsession
+xinitrc=$HOME/.xinitrc
+sysinit=$XINITDIR/xinitrc
+syssess=$XDMDIR/sys.xsession
+
+# User login X session
+# If the user doesn't have their own xsession, then run
+# system xsession or xinitrc script if they exist, but
+# use a forced X session type if the user asked for
+# an other session environment.
+
+if   test "$forced" = "yes" ; then
+     command="$syssess"
+elif test -f $session ; then
+     command="$session"
+elif test -f $xinitrc ; then
+     command="$xinitrc"
+elif test -f $syssess; then
+     command="$syssess"
+elif test -f $sysinit ; then
+     command="$sysinit"
+elif test -n "$WINDOWMANAGER" ; then
+     unset STARTUP WINDOW_MANAGER
+     command="$WINDOWMANAGER"
+fi
+
+					
+
+
+#
+# Now execute the final command line
+#
+exec_login "$command" "$@"
+
+#
+# After a failed `exec' the trapis are reseted to the default
+#
+trap "exec $failsafe" EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGIO
+
+
+#
+# Call failsafe
+#
+exit 1

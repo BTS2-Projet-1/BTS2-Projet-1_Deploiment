@@ -1,0 +1,36 @@
+<RCC>
+    <qresource prefix="/flags">
+        <file alias="France">Images/drapeau-france-icone-7111-128.png</file>
+        <file alias="English">Images/drapeau-royaume-uni-icone-7511-128.png</file>
+        <file>Images/logibag.png</file>
+    </qresource>
+    <qresource prefix="/Linguist">
+        <file alias="english">Langues/english.qm</file>
+        <file alias="french">Langues/french.qm</file>
+    </qresource>
+    <qresource prefix="/ImgList">
+        <file alias="BSuppr">Images/suppresion.png</file>
+        <file alias="BAssistance">Images/assistance.png</file>
+        <file alias="ScanCodeB">Images/scancodeBarre.png</file>
+        <file alias="BoxesEmptyOpen">Images/boxesopen.png</file>
+        <file alias="DeliveryPackage">Images/livraison1.png</file>
+        <file alias="Home">Images/home.png</file>
+        <file alias="keyboard">Images/Keyboard.png</file>
+        <file alias="list">Images/list.png</file>
+        <file alias="Package">Images/package.png</file>
+        <file alias="Man">Images/man.png</file>
+        <file alias="Car">Images/car.png</file>
+        <file alias="Maintenance">Images/maintenance.png</file>
+        <file alias="Setting">Images/settings.png</file>
+        <file alias="success">Images/valid.png</file>
+        <file alias="error">Images/error.png</file>
+    </qresource>
+    <qresource prefix="/sqlite">
+        <file>LC_SQL_files/LockerControl_SQL_File_DatabaseDefault.sql</file>
+        <file>LC_SQL_files/LockerControl_SQL_File_DatabaseEmpty.sql</file>
+    </qresource>
+    <qresource prefix="/assistance">
+        <file alias="CallOff">Images/calloff.png</file>
+        <file alias="CallOn">Images/callon.png</file>
+    </qresource>
+</RCC>
