@@ -1,0 +1,22 @@
+language: cpp
+
+compiler: gcc
+
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install build-essential libgl1-mesa-dev sqlite3 libsqlite3-dev libqt4-dev qt4-qmake libqt4-sql-sqlite -y
+
+install:
+  - cd Integration
+  - qmake
+  - make
+  - cd ..
+  - cd HOUDAYER/DossierTests_UpdateLocalData
+  - qmake
+  - make
+  - cd ..
+  - cd ..
+  
+script:
+  - cd HOUDAYER/DossierTests_UpdateLocalData
+  - ./unittest_csqlite_local_db
