@@ -9,23 +9,26 @@
 #include "clms_db.h"
 #include "csqlite_local_db.h"
 
-#define COLORRESET   "\033[0m"
-#define BLACK   "\033[30m"      /* Black */
-#define RED     "\033[31m"      /* Red */
-#define GREEN   "\033[32m"      /* Green */
-#define YELLOW  "\033[33m"      /* Yellow */
-#define BLUE    "\033[34m"      /* Blue */
-#define MAGENTA "\033[35m"      /* Magenta */
-#define CYAN    "\033[36m"      /* Cyan */
-#define WHITE   "\033[37m"      /* White */
-#define BOLDBLACK   "\033[1m\033[30m"      /* Bold Black */
-#define BOLDRED     "\033[1m\033[31m"      /* Bold Red */
-#define BOLDGREEN   "\033[1m\033[32m"      /* Bold Green */
-#define BOLDYELLOW  "\033[1m\033[33m"      /* Bold Yellow */
-#define BOLDBLUE    "\033[1m\033[34m"      /* Bold Blue */
-#define BOLDMAGENTA "\033[1m\033[35m"      /* Bold Magenta */
-#define BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
-#define BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
+#define COLORRESET  "\033[0m"               /* Default color */
+#define BLACK       "\033[30m"              /* Black */
+#define RED         "\033[31m"              /* Red */
+#define GREEN       "\033[32m"              /* Green */
+#define YELLOW      "\033[33m"              /* Yellow */
+#define BLUE        "\033[34m"              /* Blue */
+#define MAGENTA     "\033[35m"              /* Magenta */
+#define CYAN        "\033[36m"              /* Cyan */
+#define WHITE       "\033[37m"              /* White */
+#define BOLDBLACK   "\033[1m\033[30m"       /* Bold Black */
+#define BOLDRED     "\033[1m\033[31m"       /* Bold Red */
+#define BOLDGREEN   "\033[1m\033[32m"       /* Bold Green */
+#define BOLDYELLOW  "\033[1m\033[33m"       /* Bold Yellow */
+#define BOLDBLUE    "\033[1m\033[34m"       /* Bold Blue */
+#define BOLDMAGENTA "\033[1m\033[35m"       /* Bold Magenta */
+#define BOLDCYAN    "\033[1m\033[36m"       /* Bold Cyan */
+#define BOLDWHITE   "\033[1m\033[37m"       /* Bold White */
+
+//Max number of used boxes for normal use.
+#define MAX_NORMAL_USE_BOXES 5
 
 class UnitTest_CSQLite_Local_DB : public QObject
 {
@@ -96,11 +99,12 @@ void UnitTest_CSQLite_Local_DB::cleanupTestCase()
 
 void UnitTest_CSQLite_Local_DB::Test_CSQLite_Local_DB()
 {
-    QVERIFY(m_LC_Database->IsReady());
     if(!m_LC_Database->IsReady())
         std::cout << BOLDRED << "FAIL   : Database not ready !" << COLORRESET << std::endl;
     else
         std::cout << BOLDGREEN << "PASS   : Database is ready !" << COLORRESET << std::endl;
+
+    QVERIFY(m_LC_Database->IsReady());
 
     if(!m_AutoMode)
     {
@@ -148,12 +152,13 @@ void UnitTest_CSQLite_Local_DB::Test_Login()
         int LoginResult = -5;
 
         LoginResult = m_LC_Database->Login(LoginParamList[i]);
-        QCOMPARE(LoginResult,CompareValue[i]);
 
         if(LoginResult == CompareValue[i])
             std::cout << BOLDGREEN << "PASS   : Login(\" " << LoginParamList[i].toStdString() << " \") ! is " << QString::number(CompareValue[i],10).toStdString() << COLORRESET << std::endl;
         else
             std::cout << BOLDRED << "FAIL   : Login(\" " << LoginParamList[i].toStdString() << " \") ! is " << QString::number(CompareValue[i],10).toStdString() << COLORRESET << std::endl;
+
+        QCOMPARE(LoginResult,CompareValue[i]);
     }
 
     if(!m_AutoMode)
@@ -171,7 +176,7 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_NormalUse()
     m_LC_Database->SQL_Database_Manager(DEFAULT_DATABASE);
 
     //Normal use
-    for(int i=1; i<=5; i++)
+    for(int i=1; i<=MAX_NORMAL_USE_BOXES; i++)
     {
         tmp.BoxNumber = i;
         for(int j=0; j<3; j++)
@@ -188,34 +193,30 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_NormalUse()
     bool UpdateLocalData_Status = false;
     UpdateLocalData_Status = m_LC_Database->UpdateLocalData(PackageStorageListComplete);
 
-    QVERIFY(UpdateLocalData_Status);
     if(UpdateLocalData_Status)
         std::cout << BOLDGREEN << "PASS   : Database updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database not updated !" << COLORRESET << std::endl;
 
-    for(int i=6; i<m_LC_Database->Get_NumberOfBoxes()+1; i++)
+    QVERIFY(UpdateLocalData_Status);
+
+    for(int i=1; i<m_LC_Database->Get_NumberOfBoxes()+1; i++)
     {
         bool FreeBox = false;
 
         FreeBox = m_LC_Database->GetFreeBoxes().contains(i);
-        QVERIFY(FreeBox);
 
         if(FreeBox)
-            std::cout << BOLDGREEN << "PASS   : Box " << QString::number(i,10).toStdString() << ", is expected free" << COLORRESET << std::endl;
+            std::cout << BOLDGREEN << "INFO   : Box " << QString::number(i,10).toStdString() << ", is expected free" << COLORRESET << std::endl;
         else
-            std::cout << BOLDRED << "FAIL   : Box " << QString::number(i,10).toStdString() << ", is unexpected not free" << COLORRESET << std::endl;
+            std::cout << BOLDRED << "INFO   : Box " << QString::number(i,10).toStdString() << ", is unexpected not free" << COLORRESET << std::endl;
+
+        if(i>MAX_NORMAL_USE_BOXES)
+            QVERIFY(FreeBox);
+        else
+            QCOMPARE(FreeBox,false);
     }
     
-    if(!m_AutoMode)
-    {
-        qDebug() << "Press enter to continue...";
-        getwchar();
-    }
-
-    //clear delivery in database
-    QVERIFY(m_LC_Database->SQL_Database_Manager(DEFAULT_DATABASE));
-
     if(!m_AutoMode)
     {
         qDebug() << "Press enter to continue...";
@@ -247,11 +248,12 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_NormalUse_AllBoxes()
     bool UpdateLocalData_Status = false;
     UpdateLocalData_Status = m_LC_Database->UpdateLocalData(PackageStorageListComplete);
 
-    QVERIFY(UpdateLocalData_Status);
     if(UpdateLocalData_Status)
         std::cout << BOLDGREEN << "PASS   : Database updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database NOT updated !" << COLORRESET << std::endl;
+
+    QVERIFY(UpdateLocalData_Status);
 
     for(int i=1; i<=m_LC_Database->Get_NumberOfBoxes(); i++)
     {
@@ -260,20 +262,13 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_NormalUse_AllBoxes()
         FreeBox = m_LC_Database->GetFreeBoxes().contains(i);
 
         if(!FreeBox)
-            std::cout << BOLDGREEN << "PASS   : Box " << QString::number(i,10).toStdString() << ", is expected free" << COLORRESET << std::endl;
+            std::cout << BOLDGREEN << "INFO   : Box " << QString::number(i,10).toStdString() << ", is expected free" << COLORRESET << std::endl;
         else
-            std::cout << BOLDRED << "FAIL   : Box " << QString::number(i,10).toStdString() << ", is unexpected not free" << COLORRESET << std::endl;
+            std::cout << BOLDRED << "INFO   : Box " << QString::number(i,10).toStdString() << ", is unexpected not free" << COLORRESET << std::endl;
+
+        QCOMPARE(FreeBox,false);
     }
 
-    if(!m_AutoMode)
-    {
-        qDebug() << "Press enter to continue...";
-        getwchar();
-    }
-
-    //clear delivery in database
-    QVERIFY(m_LC_Database->SQL_Database_Manager(DEFAULT_DATABASE));
-    
     if(!m_AutoMode)
     {
         qDebug() << "Press enter to continue...";
@@ -291,11 +286,12 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_EmptyList()
     bool UpdateLocalData_Status = false;
     UpdateLocalData_Status = m_LC_Database->UpdateLocalData(PackageStorageListEmpty);
 
-    QCOMPARE(false,UpdateLocalData_Status);
     if(UpdateLocalData_Status == false)
         std::cout << BOLDGREEN << "PASS   : Database NOT updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database updated !" << COLORRESET << std::endl;
+
+    QCOMPARE(false,UpdateLocalData_Status);
 
     if(!m_AutoMode)
     {
@@ -328,43 +324,51 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_WrongBoxes()
     bool UpdateLocalData_Status = false;
     UpdateLocalData_Status = m_LC_Database->UpdateLocalData(PackageStorageListComplete);
 
-    QCOMPARE(false,UpdateLocalData_Status);
     if(UpdateLocalData_Status == false)
         std::cout << BOLDGREEN << "PASS   : Database NOT updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database updated !" << COLORRESET << std::endl;
+
+    QCOMPARE(false,UpdateLocalData_Status);
 
     for(int i=1; i<=m_LC_Database->Get_NumberOfBoxes(); i++)
     {
         bool FreeBox = false;
 
         FreeBox = m_LC_Database->GetFreeBoxes().contains(i);
-        QVERIFY(FreeBox);
 
         if(FreeBox)
-            std::cout << BOLDGREEN << "PASS   : Box " << QString::number(i,10).toStdString() << ", is expected free" << COLORRESET << std::endl;
+            std::cout << BOLDGREEN << "INFO   : Box " << QString::number(i,10).toStdString() << ", is expected free" << COLORRESET << std::endl;
         else
-            std::cout << BOLDRED << "FAIL   : Box " << QString::number(i,10).toStdString() << ", is unexpected not free" << COLORRESET << std::endl;
+            std::cout << BOLDRED << "INFO   : Box " << QString::number(i,10).toStdString() << ", is unexpected not free" << COLORRESET << std::endl;
+
+        QVERIFY(FreeBox);
     }
 
     QSqlQuery *query1 = new QSqlQuery(m_LC_Database->SendQuery("SELECT * FROM Package"));
     bool DataAviable = false;
 
     DataAviable = query1->next();
-    QCOMPARE(false,DataAviable);
+
     if(DataAviable == false)
         std::cout << BOLDGREEN << "PASS   : Database NOT updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database updated !" << COLORRESET << std::endl;
+
+    QCOMPARE(false,DataAviable);
+
     delete query1;
 
     QSqlQuery *query2 = new QSqlQuery(m_LC_Database->SendQuery("SELECT * FROM ExtractCode"));
     DataAviable = query2->next();
-    QCOMPARE(false,DataAviable);
+
     if(DataAviable == false)
         std::cout << BOLDGREEN << "PASS   : Database NOT updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database updated !" << COLORRESET << std::endl;
+
+    QCOMPARE(false,DataAviable);
+
     delete query2;
 
     if(!m_AutoMode)
@@ -400,11 +404,12 @@ void UnitTest_CSQLite_Local_DB::Test_UpdateLocalData_No_database()
     bool UpdateLocalData_Status = false;
     UpdateLocalData_Status = m_LC_Database->UpdateLocalData(PackageStorageListComplete);
 
-    QCOMPARE(false,UpdateLocalData_Status);
     if(UpdateLocalData_Status == false)
         std::cout << BOLDGREEN << "PASS   : Database NOT updated !" << COLORRESET << std::endl;
     else
         std::cout << BOLDRED << "FAIL   : Database updated !" << COLORRESET << std::endl;
+
+    QCOMPARE(false,UpdateLocalData_Status);
 
     if(!m_AutoMode)
     {
@@ -472,7 +477,7 @@ int main(int argc, char *argv[])
 
     if(!AutoMode)
     {
-        qDebug() << "End of UnitTest_UpdateLocalData, press enter to close...";
+        qDebug() << "End of Test_CSQLite_Local_DB, press enter to close...";
         getwchar();
     }
 
